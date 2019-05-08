@@ -67,7 +67,11 @@ def update(v1):
 
 if __name__ == '__main__':
     start_http_server(8000)
-    config.load_kube_config()
+    try:
+        config.load_incluster_config()
+    except:
+        print("WARN: Failed to load cluster config. Assuming running locally.")
+        config.load_kube_config()
 
     v1 = client.CoreV1Api()
     while(True):
