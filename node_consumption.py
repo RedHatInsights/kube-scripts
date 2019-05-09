@@ -43,25 +43,34 @@ def get_core_size(size_str):
 
 def update(v1):
     for pod in v1.list_pod_for_all_namespaces(watch=False).items:
-        if pod.status.phase == "Running":
-            for c in pod.spec.containers:
-                labels = {
-                    "pod": pod.metadata.name,
-                    "namespace": pod.metadata.namespace,
-                    "node": pod.spec.node_name,
-                    "container": c.name
-                }
+        for c in pod.spec.containers:
+            labels_map = {
+                "pod": pod.metadata.name,
+                "namespace": pod.metadata.namespace,
+                "node": pod.spec.node_name,
+                "container": c.name
+            }
+            labels = [labels_map[l] for l in LABELS]
+
+            if pod.status.phase == "Running":
                 if c.resources.requests:
                     cpu_req = get_core_size(c.resources.requests.get("cpu", "0"))
                     mem_req = get_size(c.resources.requests.get("memory", "0"))
-                    g_cpu_req.labels(**labels).set(cpu_req)
-                    g_mem_req.labels(**labels).set(mem_req)
+                    g_cpu_req.labels(*labels).set(cpu_req)
+                    g_mem_req.labels(*labels).set(mem_req)
 
                 if c.resources.limits:
                     cpu_limit = get_core_size(c.resources.limits.get("cpu", "0"))
                     mem_limit = get_size(c.resources.limits.get("memory", "0"))
-                    g_cpu_limit.labels(**labels).set(cpu_limit)
-                    g_mem_limit.labels(**labels).set(mem_limit)
+                    g_cpu_limit.labels(*labels).set(cpu_limit)
+                    g_mem_limit.labels(*labels).set(mem_limit)
+            else:
+                for metric in (g_cpu_req, g_mem_req, g_cpu_limit, g_mem_limit):
+                    try:
+                        metric.remove(*labels)
+                    except:
+                        pass
+
     print("Update complete")
 
 
