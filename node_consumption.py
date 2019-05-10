@@ -2,7 +2,7 @@
 
 import time
 from prometheus_client import start_http_server, Gauge
-from kubernetes import client, config
+from kubernetes import client, config, watch
 
 LABELS = ["node", "container", "pod", "namespace"]
 
@@ -42,7 +42,9 @@ def get_core_size(size_str):
 
 
 def update(v1):
-    for pod in v1.list_pod_for_all_namespaces(watch=False).items:
+    w = watch.Watch()
+    for event in w.stream(v1.list_pod_for_all_namespaces, _request_timeout=60):
+        pod = event["object"]
         for c in pod.spec.containers:
             labels_map = {
                 "pod": pod.metadata.name,
@@ -70,8 +72,6 @@ def update(v1):
                         metric.remove(*labels)
                     except:
                         pass
-
-    print("Update complete")
 
 
 if __name__ == '__main__':
