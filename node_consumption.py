@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import traceback
 import time
 from prometheus_client import start_http_server, Gauge
 from kubernetes import client, config, watch
@@ -44,34 +45,42 @@ def get_core_size(size_str):
 def update(v1):
     w = watch.Watch()
     for event in w.stream(v1.list_pod_for_all_namespaces, _request_timeout=60):
-        pod = event["object"]
-        for c in pod.spec.containers:
-            labels_map = {
-                "pod": pod.metadata.name,
-                "namespace": pod.metadata.namespace,
-                "node": pod.spec.node_name,
-                "container": c.name
-            }
-            labels = [labels_map[l] for l in LABELS]
+        try:
+            pod = event["object"]
+            print("Processing event for %s" % pod.metadata.name)
+            for c in pod.spec.containers:
+                labels_map = {
+                    "pod": pod.metadata.name,
+                    "namespace": pod.metadata.namespace,
+                    "node": pod.spec.node_name,
+                    "container": c.name
+                }
+                labels = [labels_map[l] for l in LABELS]
 
-            if pod.status.phase == "Running":
-                if c.resources.requests:
-                    cpu_req = get_core_size(c.resources.requests.get("cpu", "0"))
-                    mem_req = get_size(c.resources.requests.get("memory", "0"))
-                    g_cpu_req.labels(*labels).set(cpu_req)
-                    g_mem_req.labels(*labels).set(mem_req)
+                if pod.status.phase == "Running":
+                    if c.resources.requests:
+                        cpu_req = get_core_size(c.resources.requests.get("cpu", "0"))
+                        mem_req = get_size(c.resources.requests.get("memory", "0"))
+                        g_cpu_req.labels(*labels).set(cpu_req)
+                        g_mem_req.labels(*labels).set(mem_req)
 
-                if c.resources.limits:
-                    cpu_limit = get_core_size(c.resources.limits.get("cpu", "0"))
-                    mem_limit = get_size(c.resources.limits.get("memory", "0"))
-                    g_cpu_limit.labels(*labels).set(cpu_limit)
-                    g_mem_limit.labels(*labels).set(mem_limit)
-            else:
-                for metric in (g_cpu_req, g_mem_req, g_cpu_limit, g_mem_limit):
-                    try:
-                        metric.remove(*labels)
-                    except:
-                        pass
+                    if c.resources.limits:
+                        cpu_limit = get_core_size(c.resources.limits.get("cpu", "0"))
+                        mem_limit = get_size(c.resources.limits.get("memory", "0"))
+                        g_cpu_limit.labels(*labels).set(cpu_limit)
+                        g_mem_limit.labels(*labels).set(mem_limit)
+                else:
+                    for metric in (g_cpu_req, g_mem_req, g_cpu_limit, g_mem_limit):
+                        try:
+                            metric.remove(*labels)
+                            print("Successfully removed pod %s" % labels_map["pod"])
+                        except KeyError:
+                            pass
+                        except:
+                            traceback.print_exc()
+        except Exception as e:
+            print("ERROR: %s" % e)
+            traceback.print_exc()
 
 
 if __name__ == '__main__':
