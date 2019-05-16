@@ -241,7 +241,10 @@ def main(token, api, namespace, color, ca_store):
 
     observers = (Console(slack=slack), PodOOM(slack=slack), SystemOOM(slack=slack), FailedPodKill(slack=slack))
 
-    for cls in (PodFeed, EventFeed):
+    if ca_store is not None and ca_store.lower() == "false":
+        ca_store = False
+
+    for cls in (kube.PodFeed, kube.EventFeed):
         feed = cls(API, headers, namespace, observers, ca_store)
         Thread(target=feed.fetch_loop).start()
 
