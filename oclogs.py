@@ -10,12 +10,6 @@ from threading import Thread
 from util import kube_api as kube
 from util.kube_api import crayons, DATE_FORMAT, Observer
 
-
-try:
-    from slackclient import SlackClient
-except Exception:
-    pass
-
 logging.basicConfig()
 
 
@@ -51,11 +45,6 @@ class SystemOOM(Observer):
             print(f"Node: {resource.node}")
             print(f"Killed: {resource.last_seen.format(DATE_FORMAT)}")
             print(crayons.white("*" * 80))
-            msg = "\n".join([
-                ":rotating_light: *System OOM* :rotating_light:",
-                f"Node: {resource.node}",
-            ])
-            self.slack.send_message(msg)
 
 
 class FailedPodKill(Observer):
@@ -77,15 +66,6 @@ class FailedPodKill(Observer):
             print(resource.message)
             print(crayons.white("*" * 80))
 
-            msg = "\n".join([
-                ":super_saiyan: *Failed to kill pod* :super_saiyan:",
-                f"Namespace: {resource.namespace}",
-                f"Pod: {resource.name}",
-                "```%s```" % " ".join(resource.message.split("\n"))
-            ])
-
-            self.slack.send_message(msg)
-
 
 class PodOOM(Observer):
 
@@ -100,36 +80,12 @@ class PodOOM(Observer):
                     self.console(resource, c, killed)
                     self.send_slack(resource, c, killed)
 
-    def send_slack(self, p, c, killed):
-        msg = "\n".join([
-            ":dead-docker: *POD OOM* :dead-docker:",
-            f"Namespace: {p.namespace}",
-            f"Pod: {p.name}",
-            f"Container: {c.name}"
-        ])
-        self.slack.send_message(msg)
-
     def console(self, p, c, killed):
         print(crayons.white("{:*^80}".format("OOM KILLED")))
         print(f"Pod: {p.name}")
         print(f"Container: {c.name}")
         print(f"Killed: {killed.format(DATE_FORMAT)}")
         print(crayons.white("*" * 80))
-
-
-class Slack(object):
-
-    def __init__(self):
-        try:
-            token = os.environ["SLACK_TOKEN"]
-            self.channel = os.environ["SLACK_CHANNEL"]
-            self.client = SlackClient(token)
-        except Exception:
-            self.client = self.channel = None
-
-    def send_message(self, msg):
-        if self.client:
-            self.client.api_call("chat.postMessage", channel=self.channel, text=msg)
 
 
 @click.command()
@@ -156,9 +112,7 @@ def main(token, api, namespace, color, ca_store):
         "Accept": "application/json"
     }
 
-    slack = Slack()
-
-    observers = (Console(slack=slack), PodOOM(slack=slack), SystemOOM(slack=slack), FailedPodKill(slack=slack))
+    observers = (Console(), PodOOM(), SystemOOM(), FailedPodKill())
 
     if ca_store is not None and ca_store.lower() == "false":
         ca_store = False
