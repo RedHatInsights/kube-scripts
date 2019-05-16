@@ -83,6 +83,7 @@ class Pod(Resource):
         self.namespace = md["namespace"]
         self.name = md["name"]
         self.status = d["status"]["phase"]
+        self.node = d["spec"].get("nodeName", "???")
         self.started = arrow.get(md["creationTimestamp"])
         self.containers = list(self.populate_containers())
 
@@ -127,7 +128,7 @@ class Event(Resource):
         self.last_seen = arrow.get(d["lastTimestamp"])
         self.obj = d["involvedObject"]
         self.message = d["message"]
-        self.reason = d["reason"]
+        self.reason = d.get("reason", "???")
         self.component = d["source"]["component"]
         self.node = d["source"]["host"] if self.component == "kubelet" else None
         self.namespace = self.obj.get("namespace", "???")

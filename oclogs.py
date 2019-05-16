@@ -9,6 +9,7 @@ from threading import Thread
 
 from util import kube_api as kube
 from util.kube_api import crayons, DATE_FORMAT, Observer
+from util.node_consumption import RunningPods
 
 logging.basicConfig()
 
@@ -112,7 +113,7 @@ def main(token, api, namespace, color, ca_store):
         "Accept": "application/json"
     }
 
-    observers = (Console(), PodOOM(), SystemOOM(), FailedPodKill())
+    observers = (Console(), PodOOM(), SystemOOM(), FailedPodKill(), RunningPods())
 
     if ca_store is not None and ca_store.lower() == "false":
         ca_store = False
