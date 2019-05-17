@@ -14,7 +14,7 @@ from util.cloudwatch import setup_cw_logging
 
 logging.basicConfig(format="%(message)s", level=logging.INFO)
 logger = logging.root
-setup_cw_logging(logger)
+# setup_cw_logging(logger)
 
 
 class Console(Observer):
