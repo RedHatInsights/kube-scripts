@@ -10,8 +10,11 @@ from threading import Thread
 from util import kube_api as kube
 from util.kube_api import crayons, DATE_FORMAT, Observer
 from util.node_consumption import RunningPods
+from util.cloudwatch import setup_cw_logging
 
-logging.basicConfig()
+logging.basicConfig(format="%(message)s", level=logging.INFO)
+logger = logging.root
+setup_cw_logging(logger)
 
 
 class Console(Observer):
@@ -27,7 +30,7 @@ class Console(Observer):
         self.seen_messages[msg] = now
 
         if resource.last_seen is None or resource.last_seen > self.since:
-            print(msg)
+            logger.info(msg)
 
 
 class SystemOOM(Observer):
@@ -42,10 +45,10 @@ class SystemOOM(Observer):
 
             self.seen_messages[resource.node] = now
 
-            print(crayons.white("{:*^80}".format("SYSTEM OOM")))
-            print(f"Node: {resource.node}")
-            print(f"Killed: {resource.last_seen.format(DATE_FORMAT)}")
-            print(crayons.white("*" * 80))
+            logger.info(crayons.white("{:*^80}".format("SYSTEM OOM")))
+            logger.info(f"Node: {resource.node}")
+            logger.info(f"Killed: {resource.last_seen.format(DATE_FORMAT)}")
+            logger.info(crayons.white("*" * 80))
 
 
 class FailedPodKill(Observer):
@@ -61,11 +64,11 @@ class FailedPodKill(Observer):
 
             self.seen_messages[msg_key] = now
 
-            print(crayons.white("{:*^80}".format("Failed to kill pod")))
-            print(f"Pod: {resource.name}")
-            print(f"Killed: {resource.last_seen.format(DATE_FORMAT)}")
-            print(resource.message)
-            print(crayons.white("*" * 80))
+            logger.info(crayons.white("{:*^80}".format("Failed to kill pod")))
+            logger.info(f"Pod: {resource.name}")
+            logger.info(f"Killed: {resource.last_seen.format(DATE_FORMAT)}")
+            logger.info(resource.message)
+            logger.info(crayons.white("*" * 80))
 
 
 class PodOOM(Observer):
@@ -79,14 +82,13 @@ class PodOOM(Observer):
                 killed = arrow.get(c.state_data.get("finishedAt"))
                 if killed > self.since:
                     self.console(resource, c, killed)
-                    self.send_slack(resource, c, killed)
 
     def console(self, p, c, killed):
-        print(crayons.white("{:*^80}".format("OOM KILLED")))
-        print(f"Pod: {p.name}")
-        print(f"Container: {c.name}")
-        print(f"Killed: {killed.format(DATE_FORMAT)}")
-        print(crayons.white("*" * 80))
+        logger.info(crayons.white("{:*^80}".format("OOM KILLED")))
+        logger.info(f"Pod: {p.name}")
+        logger.info(f"Container: {c.name}")
+        logger.info(f"Killed: {killed.format(DATE_FORMAT)}")
+        logger.info(crayons.white("*" * 80))
 
 
 @click.command()
@@ -98,7 +100,7 @@ class PodOOM(Observer):
 def main(token, api, namespace, color, ca_store):
 
     if not api:
-        print("Please specify valid api hostname using --api")
+        logger.info("Please specify valid api hostname using --api")
         return
 
     crayons.enabled = color
