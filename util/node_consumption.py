@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 
+import logging
 import traceback
+import json
 from . import kube_api as kube
 from prometheus_client import start_http_server, Gauge
 from util.kube_api import Observer
+
+logger = logging.root
 
 
 def get_size(size_str):
@@ -53,8 +57,15 @@ class RunningPods(Observer):
         self.gauges = [
             self.g_cpu_req, self.g_mem_req, self.g_cpu_limit, self.g_mem_limit
         ]
+        self.container_map = {}
+        self.namespace_map = {}
+        self.node_map = {}
 
     def _observe_pod(self, pod):
+        self.container_map[pod.name] = [c.name for c in pod.containers]
+        self.namespace_map[pod.name] = pod.namespace
+        self.node_map[pod.name] = pod.node
+
         for c in pod.containers:
             labels_map = {
                 "pod": pod.name,
@@ -80,18 +91,33 @@ class RunningPods(Observer):
                     self.g_cpu_limit.labels(*labels).set(cpu_limit)
                     self.g_mem_limit.labels(*labels).set(mem_limit)
             else:
-                for metric in self.gauges:
-                    try:
-                        metric.remove(*labels)
-                        print("Successfully removed pod %s:%s" % (
-                            pod.name, c.name))
-                    except KeyError:
-                        pass
-                    except:
-                        traceback.print_exc()
+                self._remove_container(labels)
+
+    def _remove_container(self, labels):
+        for metric in self.gauges:
+            try:
+                for labels_key, m in metric._metrics.items():
+                    if labels_key[2] == labels[2]:
+                        logger.info(labels_key)
+                metric.remove(*labels)
+            except KeyError:
+                pass
+            except:
+                traceback.print_exc()
 
     def _observe_event(self, event):
-        pass
+        if event.reason == "Killing" and event.kind == "Pod":
+            pod_name = event.obj["name"]
+            for c in self.container_map.get(pod_name, []):
+                logger.info("Removing pod from deletion event!!")
+                labels_map = {
+                    "pod": pod_name,
+                    "namespace": self.namespace_map[pod_name],
+                    "node": self.node_map[pod_name],
+                    "container": c
+                }
+                labels = tuple([labels_map[l] for l in self.labels])
+                self._remove_container(labels)
 
     def observe(self, resource, feed):
         try:
