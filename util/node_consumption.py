@@ -41,25 +41,33 @@ def get_core_size(size_str):
 
 class RunningPods(Observer):
 
-    metric_prefix = "kube_running_pod_container_resource_"
-    labels = ["node", "container", "pod", "namespace"]
+    pod_metric_prefix = "kube_running_pod_container_resource_"
+    node_metric_prefix = "klape_kube_node_status_allocatable_"
+    pod_labels = ["node", "container", "pod", "namespace"]
+    node_labels = ["node", "type", "ready"]
 
     def __init__(self):
         start_http_server(8000)
-        self.g_cpu_req = Gauge(self.metric_prefix + "requests_cpu_cores",
-                               "", self.labels)
-        self.g_mem_req = Gauge(self.metric_prefix + "requests_memory_bytes",
-                               "", self.labels)
-        self.g_cpu_limit = Gauge(self.metric_prefix + "limits_cpu_cores",
-                                 "", self.labels)
-        self.g_mem_limit = Gauge(self.metric_prefix + "limits_memory_bytes",
-                                 "", self.labels)
-        self.gauges = [
+        self.g_cpu_req = Gauge(self.pod_metric_prefix + "requests_cpu_cores",
+                               "", self.pod_labels)
+        self.g_mem_req = Gauge(self.pod_metric_prefix + "requests_memory_bytes",
+                               "", self.pod_labels)
+        self.g_cpu_limit = Gauge(self.pod_metric_prefix + "limits_cpu_cores",
+                                 "", self.pod_labels)
+        self.g_mem_limit = Gauge(self.pod_metric_prefix + "limits_memory_bytes",
+                                 "", self.pod_labels)
+        self.pod_gauges = [
             self.g_cpu_req, self.g_mem_req, self.g_cpu_limit, self.g_mem_limit
         ]
+
+        self.g_node_cpu = Gauge(self.node_metric_prefix + "cpu_cores",
+                                 "", self.node_labels)
+        self.g_node_mem = Gauge(self.node_metric_prefix + "memory_bytes",
+                                 "", self.node_labels)
         self.container_map = {}
         self.namespace_map = {}
         self.node_map = {}
+        self.nodes = {}
 
     def _observe_pod(self, pod):
         self.container_map[pod.name] = [c.name for c in pod.containers]
@@ -73,9 +81,10 @@ class RunningPods(Observer):
                 "node": pod.node,
                 "container": c.name
             }
-            labels = [labels_map[l] for l in self.labels]
+            labels = [labels_map[l] for l in self.pod_labels]
 
-            if pod.status == "Running":
+            node_type = self.nodes[pod.node].type
+            if pod.status == "Running" and node_type == "compute":
                 resources = c.spec["resources"]
                 if "requests" in resources:
                     reqs = resources["requests"]
@@ -94,11 +103,8 @@ class RunningPods(Observer):
                 self._remove_container(labels)
 
     def _remove_container(self, labels):
-        for metric in self.gauges:
+        for metric in self.pod_gauges:
             try:
-                for labels_key, m in metric._metrics.items():
-                    if labels_key[2] == labels[2]:
-                        logger.info(labels_key)
                 metric.remove(*labels)
             except KeyError:
                 pass
@@ -107,14 +113,13 @@ class RunningPods(Observer):
 
     def _remove_pod(self, name):
         for c in self.container_map.get(name, []):
-            logger.info("Removing pod from deletion event!!")
             labels_map = {
                 "pod": name,
                 "namespace": self.namespace_map[name],
                 "node": self.node_map[name],
                 "container": c
             }
-            labels = tuple([labels_map[l] for l in self.labels])
+            labels = tuple([labels_map[l] for l in self.pod_labels])
             self._remove_container(labels)
 
     def _observe_event(self, event):
@@ -125,12 +130,28 @@ class RunningPods(Observer):
                 pod_name = event.message.split(":")[1].strip()
                 self._remove_pod(pod_name)
 
+    def _observe_node(self, node):
+        self.nodes[node.name] = node
+        labels_map = {
+            "node": node.name,
+            "type": node.type,
+            "ready": node.ready
+        }
+
+        labels = [labels_map[l] for l in self.node_labels]
+        cpu = get_core_size(node.allocatable["cpu"])
+        self.g_node_cpu.labels(*labels).set(cpu)
+        mem = get_size(node.allocatable["memory"])
+        self.g_node_mem.labels(*labels).set(mem)
+
     def observe(self, resource, feed):
         try:
             if type(resource) == kube.Pod:
                 self._observe_pod(resource)
             elif type(resource) == kube.Event:
                 self._observe_event(resource)
+            elif type(resource) == kube.Node:
+                self._observe_node(resource)
         except Exception as e:
             print("ERROR: %s" % e)
             traceback.print_exc()

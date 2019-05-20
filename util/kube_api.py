@@ -75,6 +75,37 @@ class Container(Resource):
             self.status = None
 
 
+class Node(Resource):
+
+    def __init__(self, d):
+        super().__init__(d)
+        md = self.metadata
+        self.name = md["name"]
+        self.type = md["labels"]["type"]  # compute, infra, master
+        self.taints = d["spec"].get("taints")
+        self.started = arrow.get(md["creationTimestamp"])
+        self.allocatable = d["status"]["allocatable"]
+        self.kernel = d["status"]["nodeInfo"]["kernelVersion"]
+        self.kube_version = d["status"]["nodeInfo"]["kubeletVersion"]
+
+    @property
+    def ready(self):
+        for condition in self.data["status"]["conditions"]:
+            if condition["type"] == "Ready":
+                return condition["status"].lower() == "true"
+
+    def __eq__(self, o):
+        return o is not None and o.name == self.name
+
+    def __repr__(self):
+        return "%s [%s] %s is %s" % (
+            self.started.format(DATE_FORMAT),
+            self.type,
+            crayons.white(self.name),
+            "READY" if self.ready else "NOT READY"
+        )
+
+
 class Pod(Resource):
 
     def __init__(self, d):
@@ -214,6 +245,12 @@ class PodFeed(OpenshiftFeed):
 
     resource = Pod
     api_suffix = "pods"
+
+
+class NodeFeed(OpenshiftFeed):
+
+    resource = Node
+    api_suffix = "nodes"
 
 
 class EventFeed(OpenshiftFeed):

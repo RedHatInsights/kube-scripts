@@ -4,6 +4,7 @@ import logging
 import os
 import click
 import arrow
+import time
 
 from threading import Thread
 
@@ -119,6 +120,10 @@ def main(token, api, namespace, color, ca_store):
 
     if ca_store is not None and ca_store.lower() == "false":
         ca_store = False
+
+    feed = kube.NodeFeed(API, headers, namespace, observers, ca_store)
+    Thread(target=feed.fetch_loop).start()
+    time.sleep(2)  # Make sure nodes are populated before everything else
 
     for cls in (kube.PodFeed, kube.EventFeed):
         feed = cls(API, headers, namespace, observers, ca_store)
