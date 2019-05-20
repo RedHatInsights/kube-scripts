@@ -121,11 +121,8 @@ class RunningPods(Observer):
         if event.reason == "Killing" and event.kind == "Pod":
             self._remove_pod(event.obj["name"])
         elif event.reason == "SuccessfulDelete":
-            logger.info("Processing SuccessfulDelete event")
             if event.message.startswith("Deleted pod:"):
-                logger.info("Found pod deletion event")
                 pod_name = event.message.split(":")[1].strip()
-                logger.info("Pod to be deleted: %s" % pod_name)
                 self._remove_pod(pod_name)
 
     def observe(self, resource, feed):
