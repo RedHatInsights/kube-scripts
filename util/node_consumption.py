@@ -105,19 +105,28 @@ class RunningPods(Observer):
             except:
                 traceback.print_exc()
 
+    def _remove_pod(self, name):
+        for c in self.container_map.get(name, []):
+            logger.info("Removing pod from deletion event!!")
+            labels_map = {
+                "pod": name,
+                "namespace": self.namespace_map[name],
+                "node": self.node_map[name],
+                "container": c
+            }
+            labels = tuple([labels_map[l] for l in self.labels])
+            self._remove_container(labels)
+
     def _observe_event(self, event):
         if event.reason == "Killing" and event.kind == "Pod":
-            pod_name = event.obj["name"]
-            for c in self.container_map.get(pod_name, []):
-                logger.info("Removing pod from deletion event!!")
-                labels_map = {
-                    "pod": pod_name,
-                    "namespace": self.namespace_map[pod_name],
-                    "node": self.node_map[pod_name],
-                    "container": c
-                }
-                labels = tuple([labels_map[l] for l in self.labels])
-                self._remove_container(labels)
+            self._remove_pod(event.obj["name"])
+        elif event.reason == "SuccessfulDelete":
+            logger.info("Processing SuccessfulDelete event")
+            if event.message.startswith("Deleted pod:"):
+                logger.info("Found pod deletion event")
+                pod_name = event.message.split(":")[1].strip()
+                logger.info("Pod to be deleted: %s" % pod_name)
+                self._remove_pod(pod_name)
 
     def observe(self, resource, feed):
         try:
