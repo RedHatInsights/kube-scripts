@@ -70,6 +70,10 @@ class RunningPods(Observer):
         self.nodes = {}
 
     def _observe_pod(self, pod):
+        if pod.node == "???":
+            # No node is assigned yet.  It's most likely in a pending state and
+            # we'll get another event soon
+            return
         self.container_map[pod.name] = [c.name for c in pod.containers]
         self.namespace_map[pod.name] = pod.namespace
         self.node_map[pod.name] = pod.node
