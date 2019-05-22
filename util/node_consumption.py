@@ -44,7 +44,7 @@ class RunningPods(Observer):
     pod_metric_prefix = "kube_running_pod_container_resource_"
     node_metric_prefix = "klape_kube_node_status_allocatable_"
     pod_labels = ["node", "container", "pod", "namespace"]
-    node_labels = ["node", "type", "ready"]
+    node_labels = ["node", "type"]
 
     def __init__(self):
         start_http_server(8000)
@@ -138,15 +138,23 @@ class RunningPods(Observer):
         self.nodes[node.name] = node
         labels_map = {
             "node": node.name,
-            "type": node.type,
-            "ready": node.ready
+            "type": node.type
         }
 
         labels = [labels_map[l] for l in self.node_labels]
-        cpu = get_core_size(node.allocatable["cpu"])
-        self.g_node_cpu.labels(*labels).set(cpu)
-        mem = get_size(node.allocatable["memory"])
-        self.g_node_mem.labels(*labels).set(mem)
+        if node.ready:
+            cpu = get_core_size(node.allocatable["cpu"])
+            self.g_node_cpu.labels(*labels).set(cpu)
+            mem = get_size(node.allocatable["memory"])
+            self.g_node_mem.labels(*labels).set(mem)
+        else:
+            for metric in (self.g_node_cpu, self.g_node_mem):
+                try:
+                    metric.remove(*labels)
+                except KeyError:
+                    pass
+                except:
+                    traceback.print_exc()
 
     def observe(self, resource, feed):
         try:
