@@ -178,9 +178,8 @@ class Event(Resource):
 
 class Observer(object):
 
-    def __init__(self, since=arrow.now().shift(minutes=-1), slack=None):
+    def __init__(self, since=arrow.now().shift(minutes=-1)):
         self.since = since
-        self.slack = slack
         self.seen_messages = {}
 
     def has_been_seen(self, msg_key, now):

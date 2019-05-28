@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import arrow
 import logging
 import traceback
 import json
@@ -47,6 +48,7 @@ class RunningPods(Observer):
     node_labels = ["node", "type"]
 
     def __init__(self):
+        super().__init__()
         start_http_server(8000)
         self.g_cpu_req = Gauge(self.pod_metric_prefix + "requests_cpu_cores",
                                "", self.pod_labels)
@@ -116,17 +118,24 @@ class RunningPods(Observer):
                 traceback.print_exc()
 
     def _remove_pod(self, name):
-        for c in self.container_map.get(name, []):
-            labels_map = {
-                "pod": name,
-                "namespace": self.namespace_map[name],
-                "node": self.node_map[name],
-                "container": c
-            }
-            labels = tuple([labels_map[l] for l in self.pod_labels])
-            self._remove_container(labels)
+        if name in self.container_map:
+            for c in self.container_map.get(name):
+                labels_map = {
+                    "pod": name,
+                    "namespace": self.namespace_map[name],
+                    "node": self.node_map[name],
+                    "container": c
+                }
+                labels = tuple([labels_map[l] for l in self.pod_labels])
+                self._remove_container(labels)
+            del self.container_map[name]
+            del self.namespace_map[name]
+            del self.node_map[name]
 
     def _observe_event(self, event):
+        if event.last_seen < self.since:
+            # Don't look at events that happened before the process started
+            return
         if event.reason == "Killing" and event.kind == "Pod":
             self._remove_pod(event.obj["name"])
         elif event.reason == "SuccessfulDelete":
