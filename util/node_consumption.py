@@ -175,6 +175,15 @@ class RunningPods(Observer):
                     traceback.print_exc()
 
     def observe(self, resource, feed):
+        self.clear_seen_messages()
+        msg = repr(resource)
+        now = arrow.now()
+
+        if self.has_been_seen(msg, now):
+            return
+
+        self.seen_messages[msg] = now
+
         try:
             if type(resource) == kube.Pod:
                 self._observe_pod(resource)
