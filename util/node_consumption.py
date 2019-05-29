@@ -165,6 +165,16 @@ class RunningPods(Observer):
                 except:
                     traceback.print_exc()
 
+    def _observe_project(self, project):
+        if project.status != "Active":
+            to_remove = []
+            for pod, ns in self.namespace_map.items():
+                if ns == project.name:
+                    to_remove.append(pod)
+
+            for pod in to_remove:
+                self._remove_pod(pod)
+
     def observe(self, resource, feed):
         self.clear_seen_messages()
         msg = repr(resource)
@@ -182,6 +192,8 @@ class RunningPods(Observer):
                 self._observe_event(resource)
             elif type(resource) == kube.Node:
                 self._observe_node(resource)
+            elif type(resource) == kube.Project:
+                self._observe_project(resource)
         except Exception as e:
             print("ERROR: %s" % e)
             traceback.print_exc()

@@ -75,6 +75,21 @@ class Container(Resource):
             self.status = None
 
 
+class Project(Resource):
+
+    def __init__(self, d):
+        super().__init__(d)
+        md = self.metadata
+        self.name = md["name"]
+        self.status = d["status"].get("phase", "")
+
+    def __eq__(self, o):
+        return o is not None and o.name == self.name
+
+    def __repr__(self):
+        return "%s is %s" % (self.name, self.status)
+
+
 class Node(Resource):
 
     def __init__(self, d):
@@ -256,3 +271,9 @@ class EventFeed(OpenshiftFeed):
 
     resource = Event
     api_suffix = "events"
+
+
+class ProjectFeed(OpenshiftFeed):
+
+    resource = Project
+    api_suffix = "projects"

@@ -106,7 +106,7 @@ def main(token, api, namespace, color, ca_store):
 
     crayons.enabled = color
 
-    API = f"https://{api}/api/v1"
+    API = f"https://{api}/%sapi/v1"
 
     with open(token) as fp:
         token = fp.read().strip()
@@ -121,12 +121,15 @@ def main(token, api, namespace, color, ca_store):
     if ca_store is not None and ca_store.lower() == "false":
         ca_store = False
 
-    feed = kube.NodeFeed(API, headers, namespace, observers, ca_store)
+    feed = kube.NodeFeed(API % "", headers, namespace, observers, ca_store)
     Thread(target=feed.fetch_loop).start()
     time.sleep(2)  # Make sure nodes are populated before everything else
 
-    for cls in (kube.PodFeed, kube.EventFeed):
-        feed = cls(API, headers, namespace, observers, ca_store)
+    for cls in (kube.PodFeed, kube.EventFeed, kube.ProjectFeed):
+        # dirty hack to make URL "oapi" for projects and "api" for
+        # everything else
+        api_str = API % ("o" if cls == kube.ProjectFeed else "")
+        feed = cls(api_str, headers, namespace, observers, ca_store)
         Thread(target=feed.fetch_loop).start()
 
 
