@@ -3,7 +3,6 @@
 import arrow
 import logging
 import traceback
-import json
 from . import kube_api as kube
 from prometheus_client import start_http_server, Gauge
 from util.kube_api import Observer
@@ -72,10 +71,14 @@ class RunningPods(Observer):
         self.nodes = {}
 
     def _observe_pod(self, pod):
+        logger.info("%s Processing pod '%s' in status %s" % (arrow.now(), pod.name, pod.status))
+
         if pod.node == "???":
             # No node is assigned yet.  It's most likely in a pending state and
             # we'll get another event soon
+            logger.info("No node assigned for '%s'" % pod.name)
             return
+
         self.container_map[pod.name] = [c.name for c in pod.containers]
         self.namespace_map[pod.name] = pod.namespace
         self.node_map[pod.name] = pod.node
@@ -91,6 +94,7 @@ class RunningPods(Observer):
 
             node_type = self.nodes[pod.node].type
             if pod.status == "Running" and node_type == "compute":
+                logger.info("Adding metric for '%s'.'%s'" % (pod.name, c.name))
                 resources = c.spec["resources"]
                 if "requests" in resources:
                     reqs = resources["requests"]
@@ -118,7 +122,9 @@ class RunningPods(Observer):
                 traceback.print_exc()
 
     def _remove_pod(self, name):
+        logger.info("Removing pod '%s'" % name)
         if name in self.container_map:
+            logger.info("Name '%s' in container map" % name)
             for c in self.container_map.get(name):
                 labels_map = {
                     "pod": name,
@@ -127,10 +133,13 @@ class RunningPods(Observer):
                     "container": c
                 }
                 labels = tuple([labels_map[l] for l in self.pod_labels])
+                logger.info("labels: %s" % str(labels))
                 self._remove_container(labels)
             del self.container_map[name]
             del self.namespace_map[name]
             del self.node_map[name]
+        else:
+            logger.info("Name '%s' NOT in container map. NOT deleting!" % name)
 
     def _observe_event(self, event):
         if event.last_seen < self.since:
