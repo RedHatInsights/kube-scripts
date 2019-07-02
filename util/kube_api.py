@@ -247,9 +247,10 @@ class OpenshiftFeed(object):
                 r = requests.get(url, **kwargs)
 
                 if r.status_code != 200:
-                    print(f"Invalid status from server: %s\n%s" % (
+                    print("Error invoking %s\nInvalid status from server: %s\n%s" % (
+                        url,
                         r.status_code,
-                        r.json()['message']
+                        r.json()
                     ))
                     return
 
