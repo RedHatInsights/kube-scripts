@@ -96,12 +96,20 @@ class Node(Resource):
         super().__init__(d)
         md = self.metadata
         self.name = md["name"]
-        self.type = md["labels"]["type"]  # compute, infra, master
+        self.type = self.extract_type()  # compute, infra, master
         self.taints = d["spec"].get("taints")
         self.started = arrow.get(md["creationTimestamp"])
         self.allocatable = d["status"]["allocatable"]
         self.kernel = d["status"]["nodeInfo"]["kernelVersion"]
         self.kube_version = d["status"]["nodeInfo"]["kubeletVersion"]
+
+    def extract_type(self):
+        labels = self.metadata["labels"]
+        if "type" in labels:
+            return labels["type"]
+        for key in labels.keys():
+            if key.startswith("node-role.kubernetes.io"):
+                return key.split("/")[1]
 
     @property
     def ready(self):
