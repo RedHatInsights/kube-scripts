@@ -242,7 +242,9 @@ class OpenshiftFeed(object):
                 if self.ca_store is not None:
                     kwargs["verify"] = self.ca_store
 
-                r = requests.get(f"{self.api}/watch/{ns_url}{self.api_suffix}", **kwargs)
+                url = f"{self.api}/watch/{ns_url}{self.api_suffix}"
+                print(f"Calling {url}")
+                r = requests.get(url, **kwargs)
 
                 if r.status_code != 200:
                     print(f"Invalid status from server: %s\n%s" % (
